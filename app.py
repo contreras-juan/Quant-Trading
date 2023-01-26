@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from tvDatafeed import TvDatafeed, Interval
+from tradingview_ta import TA_Handler, Interval, Exchange
 from dict import *
 
 # creates the Dash App
@@ -22,14 +23,14 @@ timeframe_dropdown = html.Div([
     html.P('Timeframe:'),
     dcc.Dropdown(
         id='timeframe-dropdown',
-        options=['Hourly', 'Daily', 'Weekly', 'Monthly'],
-        value='D1'
+        options=['Daily', 'Weekly', 'Monthly'],
+        value='Daily'
     )
 ])
 
 num_bars_input = html.Div([
     html.P('Number of Candles'),
-    dbc.Input(id='num-bar-input', type='number', value='1000')
+    dbc.Input(id='num-bar-input', type='number', value='100')
 ])
 
 # creates the layout of the App
@@ -55,14 +56,16 @@ app.layout = html.Div([
     Output('page-content', 'children'),
     Input('update', 'n_intervals'),
     State('symbol-dropdown', 'value'), 
-    #State('timeframe-dropdown', 'value'), 
+    State('timeframe-dropdown', 'value'), 
     State('num-bar-input', 'value')
 )
 
 
-def update_ohlc_chart(interval, symbol, num_bars):
+def update_ohlc_chart(interval, symbol, timeframe, num_bars):
+
 #    timeframe_str = timeframe
-#    timeframe = TIMEFRAME_DICT[timeframe]
+    freq = freq_dict[timeframe]
+
 
     exchange = exchange_dict[symbol]
     num_bars = int(num_bars)
@@ -70,11 +73,20 @@ def update_ohlc_chart(interval, symbol, num_bars):
 #    print(symbol, num_bars)
 
     tv = TvDatafeed()
-    bars = tv.get_hist(symbol=symbol,exchange=exchange,interval=Interval.in_1_hour,n_bars=num_bars)
+    bars = tv.get_hist(symbol=symbol, exchange=exchange, interval=freq , n_bars=num_bars)
     df = bars.copy()
 #    df['time'] = pd.to_datetime(df['time'], unit='s')
     df['time'] = df.index
     df['ma'] = df['close'].rolling(window=10).mean()
+
+    handler = TA_Handler(
+        symbol=symbol,
+        screener="america",
+        exchange=exchange,
+        interval=freq
+    )
+
+    recommendations = handler.get_analysis().summary
 
     fig = go.Figure(data=go.Candlestick(x=df['time'],
                     open=df['open'],
@@ -82,12 +94,14 @@ def update_ohlc_chart(interval, symbol, num_bars):
                     low=df['low'],
                     close=df['close']))
 
+    period = freq_name_dict[timeframe]
+
     fig.add_trace(
         go.Scatter(
             x=df['time'],
             y=df['ma'],
             line=dict(color = '#e0e0e0'),
-            name = '10-hour moving average'
+            name = f'10-{period} moving average'
         )
     )
 
