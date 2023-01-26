@@ -18,14 +18,14 @@ symbol_dropdown = html.Div([
     )
 ])
 
-#timeframe_dropdown = html.Div([
-#    html.P('Timeframe:'),
-#    dcc.Dropdown(
-#        id='timeframe-dropdown',
-#        options=[{'label': timeframe, 'value': timeframe} for timeframe in TIMEFRAMES],
-#        value='D1'
-#    )
-#])
+timeframe_dropdown = html.Div([
+    html.P('Timeframe:'),
+    dcc.Dropdown(
+        id='timeframe-dropdown',
+        options=['Hourly', 'Daily', 'Weekly', 'Monthly'],
+        value='D1'
+    )
+])
 
 num_bars_input = html.Div([
     html.P('Number of Candles'),
@@ -38,13 +38,13 @@ app.layout = html.Div([
 
     dbc.Row([
         dbc.Col(symbol_dropdown),
- #       dbc.Col(timeframe_dropdown),
+        dbc.Col(timeframe_dropdown),
         dbc.Col(num_bars_input)
     ]),
 
     html.Hr(),
 
-    dcc.Interval(id='update', interval=20000),
+    dcc.Interval(id='update', interval=1000),
 
     html.Div(id='page-content')
 
@@ -67,13 +67,14 @@ def update_ohlc_chart(interval, symbol, num_bars):
     exchange = exchange_dict[symbol]
     num_bars = int(num_bars)
 
-    print(symbol, num_bars)
+#    print(symbol, num_bars)
 
     tv = TvDatafeed()
     bars = tv.get_hist(symbol=symbol,exchange=exchange,interval=Interval.in_1_hour,n_bars=num_bars)
     df = bars.copy()
 #    df['time'] = pd.to_datetime(df['time'], unit='s')
     df['time'] = df.index
+    df['ma'] = df['close'].rolling(window=10).mean()
 
     fig = go.Figure(data=go.Candlestick(x=df['time'],
                     open=df['open'],
@@ -81,13 +82,20 @@ def update_ohlc_chart(interval, symbol, num_bars):
                     low=df['low'],
                     close=df['close']))
 
-    fig.update(layout_xaxis_rangeslider_visible=False)
-    fig.update_layout(yaxis={'side': 'right'})
-    fig.layout.xaxis.fixedrange = True
-    fig.layout.yaxis.fixedrange = True
+    fig.add_trace(
+        go.Scatter(
+            x=df['time'],
+            y=df['ma'],
+            line=dict(color = '#e0e0e0'),
+            name = '10-hour moving average'
+        )
+    )
+
+    fig.update_layout(template='plotly_dark', title=f"Historical price of: {symbol} ", yaxis_title=f'{symbol} price (USD)', xaxis_title='Date', xaxis_rangeslider_visible=False)
+
+
 
     return [
-        html.H2(id='chart-details', children=f'{symbol}'),
         dcc.Graph(figure=fig, config={'displayModeBar': False})
         ]
 
