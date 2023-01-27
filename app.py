@@ -25,7 +25,7 @@ timeframe_dropdown = html.Div([
     html.P('Timeframe:'),
     dcc.Dropdown(
         id='timeframe-dropdown',
-        options=['Minute', '15 minutes', '30 minutes', 'Hourly', 'Daily', 'Weekly', 'Monthly'],
+        options=['Daily', 'Weekly', 'Monthly'],
         value='Daily'
     )
 ])
@@ -83,26 +83,26 @@ def update_ohlc_chart(interval, symbol, timeframe, num_bars):
 
     df['buy'] = 'Nothing'
     df['buy'] = np.where(
-        (df['close'] > df['open']) & (df['close'] < df['ma']) & (df['open']/df['close'] >=0.99),
+        (df['close'] > df['open']) & (df['close'] < df['ma']) & (df['open']/df['close'] >=0.995),
         'Buy Call',
         df['buy']
     )
 
     df['buy'] = np.where(
-        (df['open'] > df['close']) & (df['open'] > df['ma']) & (df['close']/df['open'] >=0.99),
+        (df['open'] > df['close']) & (df['open'] > df['ma']) & (df['close']/df['open'] >=0.995),
         'Buy Put',
         df['buy']
     )
 
     df['close_op'] = 'Nothing'
     df['close_op'] = np.where(
-        (df['close'] > df['open']) & (df['close'] < df['ma']) & (df['open']/df['close'] >=0.99),
+        (df['close'] > df['open']) & (df['close'] < df['ma']) & (df['open']/df['close'] >=0.995),
         'Close Call',
         df['close_op']
     )
 
     df['close_op'] = np.where(
-        (df['open'] > df['close']) & (df['open'] > df['ma']) & (df['close']/df['open'] >=0.99),
+        (df['open'] > df['close']) & (df['open'] > df['ma']) & (df['close']/df['open'] >=0.995),
         'Close Put',
         df['close_op']
     )
@@ -134,14 +134,57 @@ def update_ohlc_chart(interval, symbol, timeframe, num_bars):
     
 
 
-#    for date in buy_call['time']:
-#        fig.add_annotation(
-#            x=date, y=buy_call['close'], xref="x", yref="y", text='Buy Call', showarrow=True, 
-#            font=dict(family="Courier New, monospace", size=16, color="#ffffff"), 
-#            align="center", arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#636363", 
-#            ax=20, ay=-30, bordercolor="#c7c7c7", borderwidth=2, borderpad=4, 
-#            bgcolor="#ff7f0e", opacity=0.8
-#        )
+    fig.add_trace(
+        go.Scatter(
+            x=buy_call['time'],
+            y=buy_call['close']-2,
+            mode='markers',
+            name = 'Buy Call',
+            marker=dict(
+                size=8,
+                color='#3276E6'
+        )
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=buy_call['time'],
+            y=buy_call['close']+2,
+            mode='markers',
+            name = 'Close put',
+            marker=dict(
+                size=8,
+                color='#E60580'
+        )
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=buy_put['time'],
+            y=buy_put['close']-2,
+            mode='markers',
+            name = 'Buy Put',
+            marker=dict(
+                size=8,
+                color='#E6A010'
+        )
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=buy_put['time'],
+            y=buy_put['close']+2,
+            mode='markers',
+            name = 'Close call',
+            marker=dict(
+                size=8,
+                color='#0CE605'
+        )
+        )
+    )
 
 
     fig.update_layout(template='plotly_dark', title=f"Historical price of: {symbol} ", yaxis_title=f'{symbol} price (USD)', xaxis_title='Date', xaxis_rangeslider_visible=False)
