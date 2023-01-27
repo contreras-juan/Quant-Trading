@@ -1,11 +1,13 @@
 from dash import Dash, html, dcc
 from dash.dependencies import Input, Output, State
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from tvDatafeed import TvDatafeed, Interval
-from tradingview_ta import TA_Handler, Interval, Exchange
 from dict import *
+from datetime import datetime, timedelta
+
 
 # creates the Dash App
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -23,7 +25,7 @@ timeframe_dropdown = html.Div([
     html.P('Timeframe:'),
     dcc.Dropdown(
         id='timeframe-dropdown',
-        options=['Daily', 'Weekly', 'Monthly'],
+        options=['Minute', '15 minutes', '30 minutes', 'Hourly', 'Daily', 'Weekly', 'Monthly'],
         value='Daily'
     )
 ])
@@ -45,7 +47,7 @@ app.layout = html.Div([
 
     html.Hr(),
 
-    dcc.Interval(id='update', interval=1000),
+    dcc.Interval(id='update', interval=5000),
 
     html.Div(id='page-content')
 
@@ -60,15 +62,14 @@ app.layout = html.Div([
     State('num-bar-input', 'value')
 )
 
-
 def update_ohlc_chart(interval, symbol, timeframe, num_bars):
 
 #    timeframe_str = timeframe
     freq = freq_dict[timeframe]
-
-
     exchange = exchange_dict[symbol]
     num_bars = int(num_bars)
+
+    delta_t = timedelta_dict[timeframe]
 
 #    print(symbol, num_bars)
 
@@ -76,17 +77,36 @@ def update_ohlc_chart(interval, symbol, timeframe, num_bars):
     bars = tv.get_hist(symbol=symbol, exchange=exchange, interval=freq , n_bars=num_bars)
     df = bars.copy()
 #    df['time'] = pd.to_datetime(df['time'], unit='s')
-    df['time'] = df.index
-    df['ma'] = df['close'].rolling(window=10).mean()
 
-    handler = TA_Handler(
-        symbol=symbol,
-        screener="america",
-        exchange=exchange,
-        interval=freq
+    df['time'] = df.index
+    df['ma'] = df['close'].rolling(window=21).mean()
+
+    df['buy'] = 'Nothing'
+    df['buy'] = np.where(
+        (df['close'] > df['open']) & (df['close'] < df['ma']) & (df['open']/df['close'] >=0.99),
+        'Buy Call',
+        df['buy']
     )
 
-    recommendations = handler.get_analysis().summary
+    df['buy'] = np.where(
+        (df['open'] > df['close']) & (df['open'] > df['ma']) & (df['close']/df['open'] >=0.99),
+        'Buy Put',
+        df['buy']
+    )
+
+    df['close_op'] = 'Nothing'
+    df['close_op'] = np.where(
+        (df['close'] > df['open']) & (df['close'] < df['ma']) & (df['open']/df['close'] >=0.99),
+        'Close Call',
+        df['close_op']
+    )
+
+    df['close_op'] = np.where(
+        (df['open'] > df['close']) & (df['open'] > df['ma']) & (df['close']/df['open'] >=0.99),
+        'Close Put',
+        df['close_op']
+    )
+
 
     fig = go.Figure(data=go.Candlestick(x=df['time'],
                     open=df['open'],
@@ -101,9 +121,28 @@ def update_ohlc_chart(interval, symbol, timeframe, num_bars):
             x=df['time'],
             y=df['ma'],
             line=dict(color = '#e0e0e0'),
-            name = f'10-{period} moving average'
+            name = f'21-{period} moving average'
         )
     )
+
+    buy_call = df[df['buy']=='Buy Call']
+    buy_put = df[df['buy']=='Buy Put']
+
+    close_call = df[df['close_op']=='Close Call']
+    close_put = df[df['close_op']=='Close Put']
+    
+    
+
+
+#    for date in buy_call['time']:
+#        fig.add_annotation(
+#            x=date, y=buy_call['close'], xref="x", yref="y", text='Buy Call', showarrow=True, 
+#            font=dict(family="Courier New, monospace", size=16, color="#ffffff"), 
+#            align="center", arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor="#636363", 
+#            ax=20, ay=-30, bordercolor="#c7c7c7", borderwidth=2, borderpad=4, 
+#            bgcolor="#ff7f0e", opacity=0.8
+#        )
+
 
     fig.update_layout(template='plotly_dark', title=f"Historical price of: {symbol} ", yaxis_title=f'{symbol} price (USD)', xaxis_title='Date', xaxis_rangeslider_visible=False)
 
